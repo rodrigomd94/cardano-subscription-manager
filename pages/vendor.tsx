@@ -3,6 +3,7 @@ import { Lucid, SpendingValidator } from 'lucid-cardano';
 import { NextPage } from 'next';
 import { useEffect, useState } from 'react';
 import LoadingModal from '../components/LoadingModal';
+import MessageModal from '../components/MessageModal';
 import VendorTable from '../components/VendorTable';
 import WalletConnect from '../components/WalletConnect';
 import { CustomerData, getCompiledProgram, getVendorSubscriptions } from '../utils/contract';
@@ -15,12 +16,24 @@ const VendorPage: NextPage = () => {
     const [lucid, setLucid] = useState<Lucid>()
     const walletStore = useStoreState((state: any) => state.wallet)
     const [scriptAddress, setScriptAddress] = useState<string>("")
-  const [loading, setLoading] = useState<boolean>(true)
+    const [loading, setLoading] = useState<boolean>(true)
+    const [displayMessage, setDisplayMessage] = useState<{ title: string, message: string }>({ title: "", message: "" })
+    const [showModal, setShowModal] = useState<boolean>(false)
 
     useEffect(() => {
         if (!lucid) {
-            initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
+            if (walletStore.name != "") {
+                console.log("hello")
+                setLoading(true)
+                initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
+
+            } else {
+                setLoading(false)
+                setDisplayMessage({ title: "Not connected", message: "Close this modal and connect your wallet." })
+                setShowModal(true)
+            }
         } else {
+            setLoading(true)
             const thisScript: SpendingValidator = {
                 type: "PlutusV2",
                 script: JSON.parse(getCompiledProgram().serialize()).cborHex,
@@ -46,6 +59,8 @@ const VendorPage: NextPage = () => {
             <div className="hero min-h-screen bg-base-200 w-full">
                 <div className="hero-content flex-col w-full">
                     <LoadingModal active={loading} />
+                    <MessageModal message={displayMessage.message} active={showModal} title={displayMessage.title} />
+
                     <div className="card flex-shrink-0 shadow-2xl bg-base-100">
                         <div className="card-body mb-20 mx-5">
                             <div className="text-center lg:text-left">
@@ -54,7 +69,7 @@ const VendorPage: NextPage = () => {
                                 <WalletConnect />
                                 {/* <input type="text" onChange={(e) => { setVendorAddress(e.target.value) }} value={vendorAddress} placeholder="Enter vendor address" className="input input-bordered input-primary w-full max-w-xs" />
                                 <button disabled={!vendorAddress.startsWith("addr")} className={`btn btn-primary`} onClick={() => { getCustomerList(vendorAddress, scriptAddress) }} >Search</button> */}
-                                <VendorTable customerList={customerList} scriptAddress={scriptAddress} vendorAddress={vendorAddress} />
+                                {walletStore.address && <VendorTable customerList={customerList} scriptAddress={scriptAddress} vendorAddress={vendorAddress} />}
                             </div>
                         </div>
                     </div>

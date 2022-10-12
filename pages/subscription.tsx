@@ -29,7 +29,7 @@ const Subscription: NextPage = () => {
   const [totalPrice, setTotalPrice] = useState<string>("0")
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData>()
   const [subscriptionStart, setSubscriptionStart] = useState(Date.now())
-  const [displayMessage, setDisplayMessage] = useState<{title: string, message: string}>({title:"", message:""})
+  const [displayMessage, setDisplayMessage] = useState<{ title: string, message: string }>({ title: "", message: "" })
   const [showModal, setShowModal] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
 
@@ -51,6 +51,7 @@ const Subscription: NextPage = () => {
 
   useEffect(() => {
     if (lucid) {
+      setLoading(true)
       setTotalPrice((price / 1000000).toFixed(4))
       const thisScript: SpendingValidator = {
         type: "PlutusV2",
@@ -77,13 +78,22 @@ const Subscription: NextPage = () => {
             if (data.isSubscribed) { setSubscriptionStart(data.subscribedUntil) }
             setLoading(false)
           }).catch((err) => {
-            setDisplayMessage({title:"Error", message:err.message})
+            setDisplayMessage({ title: "Error", message: err.message })
             setShowModal(true)
           })
       })
 
-    } else if (walletStore.name) {
-      initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
+    } else {
+      if (walletStore.name != "") {
+        console.log("hello")
+        setLoading(true)
+        initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
+
+      } else {
+        setLoading(false)
+        setDisplayMessage({ title: "Not connected", message: "Close this modal and connect your wallet to subscribe" })
+        setShowModal(true)
+      }
     }
   }, [lucid, walletStore.address])
 
@@ -102,7 +112,7 @@ const Subscription: NextPage = () => {
         .complete();
       const signedTx = await tx.sign().complete();
       const txHash = await signedTx.submit()
-      setDisplayMessage({title:"Transaction submitted", message:`Tx hash: ${txHash}`})
+      setDisplayMessage({ title: "Transaction submitted", message: `Tx hash: ${txHash}` })
       setShowModal(true)
       console.log(txHash);
     }
