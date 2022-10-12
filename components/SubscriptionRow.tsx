@@ -90,8 +90,8 @@ const SubscriptionRow = (props: any) => {
                 <td>{vendor.subscriptionData.isSubscribed ? "Yes" : "No"}</td>
                 <td>{vendor.subscriptionData.remainingPeriods}</td>
                 <td>{(vendor.subscriptionData.lockedFunds / 1000000).toFixed(3)} ADA</td>
-                <td><button disabled={vendor.subscriptionData.claimableAmount == 0 || !lucid} className={`btn btn-accent `} onClick={() => { redeemUtxo() }} >Cancel</button></td>
-                <td><a href={`/subscription?vendorpkh=${vendor.vendorPkh}&price=${price}&intervalDays=${intervalDays}`} target="_blank" rel="noreferrer" ><button disabled={vendor.subscriptionData.claimableAmount == 0 || !lucid} className={`btn btn-primary `} >Add</button></a></td>
+                <td><button disabled={!lucid} className={`btn btn-accent `} onClick={() => { redeemUtxo() }} >Cancel</button></td>
+                <td><a href={`/subscription?vendorpkh=${vendor.vendorPkh}&price=${price}&intervalDays=${intervalDays}`} target="_blank" rel="noreferrer" ><button disabled={!lucid} className={`btn btn-primary `} >Add</button></a></td>
             </tr>
         </>
     )

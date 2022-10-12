@@ -3,6 +3,7 @@ import { Lucid, SpendingValidator } from 'lucid-cardano';
 import { NextPage } from 'next';
 import { useEffect, useState } from 'react';
 import CustomerTable from '../components/CustomerTable';
+import LoadingModal from '../components/LoadingModal';
 import WalletConnect from '../components/WalletConnect';
 import { CustomerData, getCompiledProgram, getCustomerSubscriptions, ServiceData } from '../utils/contract';
 import initLucid from '../utils/lucid';
@@ -14,6 +15,8 @@ const CustomerPage: NextPage = () => {
     const [lucid, setLucid] = useState<Lucid>()
     const walletStore = useStoreState((state: any) => state.wallet)
     const [scriptAddress, setScriptAddress] = useState<string>("")
+  const [loading, setLoading] = useState<boolean>(true)
+
     useEffect(() => {
         if (!lucid) {
             initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
@@ -31,15 +34,18 @@ const CustomerPage: NextPage = () => {
 
     const getSubscriptionList = async (customerAddress: string, scriptAddress: string) => {
         const utxos = await lucid!.utxosAt(scriptAddress)
+        console.log("customer address: ", customerAddress)
         const subscriptions = await getCustomerSubscriptions(lucid!, customerAddress, utxos)
-        console.log(utxos)
+        console.log(subscriptions, utxos)
         setSubscriptionList(subscriptions)
+        setLoading(false)
     }
 
     return (
         <>
             <div className="hero min-h-screen bg-base-200 w-full">
                 <div className="hero-content flex-col w-full">
+                    <LoadingModal active={loading} />
                     <div className="card flex-shrink-0 shadow-2xl bg-base-100">
                         <div className="card-body mb-20 mx-5">
                             <div className="text-center lg:text-left">

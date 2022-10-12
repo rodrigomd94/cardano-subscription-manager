@@ -12,7 +12,6 @@ export const getInputsFromPkh = async(txHash: string, addressPkh: string) =>{
             }
         }
     ).then(res => res.json());
-    console.log(data)
     if (data?.error) {
         // Handle error.
         console.log("error")

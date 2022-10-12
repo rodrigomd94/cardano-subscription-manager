@@ -1,11 +1,6 @@
 
 
-import { Lucid } from 'lucid-cardano';
 import { useState, useEffect } from 'react'
-import { CustomerData, ServiceData } from '../utils/contract';
-import initLucid from '../utils/lucid';
-import { useStoreActions, useStoreState } from "../utils/store";
-import SubscriptionRow from './SubscriptionRow';
 // table where the customer can see his active subscriptions
 const MessageModal = (props: any) => {
     const title = props.title;

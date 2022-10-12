@@ -10,6 +10,7 @@ import { useRouter } from 'next/router'
 import { calculateTotalPrice } from '../utils/contract'
 import Link from 'next/link'
 import MessageModal from '../components/MessageModal'
+import LoadingModal from '../components/LoadingModal'
 
 const Subscription: NextPage = () => {
   const router = useRouter();
@@ -30,6 +31,7 @@ const Subscription: NextPage = () => {
   const [subscriptionStart, setSubscriptionStart] = useState(Date.now())
   const [displayMessage, setDisplayMessage] = useState<{title: string, message: string}>({title:"", message:""})
   const [showModal, setShowModal] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(true)
 
   const selectPeriods = (periodValue: number) => {
     console.log(periodValue)
@@ -73,6 +75,7 @@ const Subscription: NextPage = () => {
             console.log("data", data)
             setSubscriptionData(data)
             if (data.isSubscribed) { setSubscriptionStart(data.subscribedUntil) }
+            setLoading(false)
           }).catch((err) => {
             setDisplayMessage({title:"Error", message:err.message})
             setShowModal(true)
@@ -110,6 +113,7 @@ const Subscription: NextPage = () => {
   return (
     <div className="hero min-h-screen bg-base-200">
       <MessageModal message={displayMessage.message} active={showModal} title={displayMessage.title} />
+      <LoadingModal active={loading} />
       <div className="hero-content flex-col ">
         <div className="card flex-shrink-0 w-full max-w-lg shadow-2xl bg-base-100">
           <div className="card-body">

@@ -3,9 +3,10 @@ import WalletConnect from '../components/WalletConnect'
 import { useStoreActions, useStoreState } from "../utils/store"
 import { useState, useEffect } from 'react'
 import initLucid from '../utils/lucid'
-import { Lucid, SpendingValidator, Data, UTxO } from 'lucid-cardano'
+import { Lucid, SpendingValidator, Data, UTxO, C, fromHex, toHex } from 'lucid-cardano'
 
 import { getCompiledProgram, generateDatum, SubscriptionData, UTxOWithDatum, reconstructDatum, getSubscriptionData } from '../utils/contract'
+import LoadingModal from '../components/LoadingModal'
 
 const CreateSubscription: NextPage = () => {
 
@@ -17,7 +18,7 @@ const CreateSubscription: NextPage = () => {
   const [intervalDays, setIntervalDays] = useState(0)
   const [price, setPrice] = useState<number>(0)
   const [url, setUrl] = useState<string>("")
-  const[hostname, setHostname] = useState<string>("")
+  const [loading, setLoading] = useState<boolean>(true)
 
   useEffect(() => {
     if (lucid) {
@@ -34,7 +35,7 @@ const CreateSubscription: NextPage = () => {
       ).paymentCredential;
       const vendPkh = vendorPaymentCredential?.hash!
       setVendorPkh(vendPkh)
-
+      setLoading(false)
       
     } else {
       initLucid(walletStore.name).then((Lucid: Lucid) => { setLucid(Lucid) })
@@ -50,7 +51,7 @@ const CreateSubscription: NextPage = () => {
       const tx = await lucid.newTx()
         .payToContract(scriptAddress, {
           inline: generatedDatum,
-          scriptRef: script, // adding plutusV2 script to output
+       //   scriptRef: script, // adding plutusV2 script to output
         }, { lovelace: BigInt(0) })
         .complete();
       const signedTx = await tx.sign().complete();
@@ -67,6 +68,7 @@ const CreateSubscription: NextPage = () => {
   return (
     <div className="hero min-h-screen bg-base-200">
       <div className="hero-content flex-col ">
+        <LoadingModal active={loading} />
         <div className="card flex-shrink-0 w-full max-w-lg shadow-2xl bg-base-100">
           <div className="card-body">
             <div className="text-center lg:text-left">

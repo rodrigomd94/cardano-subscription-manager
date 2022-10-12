@@ -1,13 +1,13 @@
 
 const optimize = true;
 import { Address, Program, PubKeyHash, UplcProgram } from '@hyperionbt/helios'
-import { Assets, toHex, C, UTxO, Data, Lucid } from 'lucid-cardano'
+import { Assets, toHex, C, UTxO, Data, Lucid, SpendingValidator, fromHex } from 'lucid-cardano'
 import { format } from 'path';
 import { getInputsFromPkh } from './cardano';
 
 export interface SubscriptionData {
     utxos: UTxO[]
-    refUtxo: UTxO
+    refUtxo: UTxO | undefined
     refDatum: ReconstructedDatum
     oldestUtxo: UTxOWithDatum
     isSubscribed: boolean
@@ -162,7 +162,6 @@ export const generateDatum = (customerPkh: string, vendorPkh: string, funds: Ass
 
 export const reconstructDatum = (datumCbor: string) => {
     let fields = (Data.from(datumCbor) as any).fields
-    console.log(fields)
     let datumJson: ReconstructedDatum = {
         customer: fields[0],
         vendor: fields[1],
@@ -175,7 +174,6 @@ export const reconstructDatum = (datumCbor: string) => {
 }
 
 export const calculateTotalPrice = (periods: number, periodPrice: number): Assets => {
-    console.log(BigInt(periodPrice * periods).toString())
     return { "lovelace": BigInt(periodPrice * periods) }
 }
 
@@ -191,24 +189,40 @@ export const getSubscriptionData = async (lucid: Lucid, vendorPkh: string, custo
     let claimableAmount = 0
     let lockedFunds = 0
     let totalPeriods = 0
+    let refUtxo: UTxO | undefined = undefined
 
-    const refUtxos: UTxO[] = []
+    let script: SpendingValidator = {
+        type: "PlutusV2",
+        script: JSON.parse(getCompiledProgram().serialize()).cborHex,
+    };
+    let scriptRef = toHex(C.ScriptRef.new(
+        C.Script.new_plutus_v2(
+            C.PlutusScript.from_bytes(fromHex(script.script)),
+        ),
+    ).to_bytes())
+
+    const vendorUtxos: UTxO[] = []
     for (let utxo of contractUtxos) {
-        if (Boolean(utxo.scriptRef)) {
-            let utxoInputs = await getInputsFromPkh(utxo.txHash, vendorPkh)
-            if (utxoInputs.length > 0) {
-                refUtxos.push(utxo)
+        if (utxo.scriptRef === scriptRef) {
+            refUtxo = utxo
+        }
+        let utxoInputs = await getInputsFromPkh(utxo.txHash, vendorPkh)
+        if (utxoInputs.length > 0 && utxo.datum) {
+            let datum = reconstructDatum(await lucid!.datumOf(utxo))
+            //console.log("here", datum, "vendor", vendorPkh)
+            if (datum.vendor == vendorPkh) {
+                vendorUtxos.push(utxo)
             }
         }
     }
-    if(refUtxos.length === 0){
-        throw new Error("This vendor has not created a subscription plan. If you recently created one, please wait a few minutes and try again") 
+    if (vendorUtxos.length === 0) {
+        throw new Error("This vendor has not created a subscription plan. If you are a vendor and recently created one, please wait a few minutes and try again")
     }
-    let refDatum = reconstructDatum(await lucid!.datumOf(refUtxos[refUtxos.length - 1]))
-    console.log("refDatum", refDatum)
+    let refDatum = reconstructDatum(await lucid!.datumOf(vendorUtxos[vendorUtxos.length - 1]))
     for (let utxo of contractUtxos) {
         if (!Boolean(utxo.scriptRef)) {
             let datum = reconstructDatum(await lucid!.datumOf(utxo))
+            console.log("datum",datum)
             lockedFunds += Number(datum.funds)
             if (datum.customer == customerPkh && datum.vendor === vendorPkh) {
                 const utxoTotalPeriods = Number(datum.funds) / Number(refDatum.price)
@@ -225,16 +239,14 @@ export const getSubscriptionData = async (lucid: Lucid, vendorPkh: string, custo
                     const utxoClaimableAmount = utxoClaimablePeriods * Number(refDatum.price)
                     claimablePeriods += utxoClaimablePeriods
                     claimableAmount += utxoClaimableAmount
-                } 
+                }
                 if (Number(datum.next_withdrawal) > highestNextWithdrawal) {
                     highestNextWithdrawal = Number(datum.next_withdrawal)
                     subscribedUntil = highestNextWithdrawal - Number(refDatum.interval) + Number(refDatum.interval) * Number(datum.funds) / Number(refDatum.price)
-                    console.log("until", highestNextWithdrawal, Number(refDatum.interval), Number(datum.funds), Number(refDatum.price))
                 }
                 if ((Number(datum.next_withdrawal) < lowestNextWithdrawal) || lowestNextWithdrawal === 0) {
                     lowestNextWithdrawal = Number(datum.next_withdrawal)
                     oldestUtxo = { utxo, datum }
-                    console.log("oldest", oldestUtxo)
                 }
                 utxos.push(utxo)
             }
@@ -242,7 +254,7 @@ export const getSubscriptionData = async (lucid: Lucid, vendorPkh: string, custo
     }
     let remainingPeriods = totalPeriods - claimablePeriods
     if (isSubscribed) remainingPeriods += 1
-    return ({ utxos, refUtxo: refUtxos[0], refDatum, oldestUtxo, isSubscribed, subscribedUntil, claimablePeriods, claimableAmount, lockedFunds, remainingPeriods }) //add claimablePeriods + claimableAmount
+    return ({ utxos, refUtxo, refDatum, oldestUtxo, isSubscribed, subscribedUntil, claimablePeriods, claimableAmount, lockedFunds, remainingPeriods }) //add claimablePeriods + claimableAmount
 }
 
 export const getVendorSubscriptions = async (lucid: Lucid, vendorAddress: string, contractUtxos: UTxO[]) => {
@@ -254,10 +266,8 @@ export const getVendorSubscriptions = async (lucid: Lucid, vendorAddress: string
     for (let utxo of contractUtxos) {
         if (!Boolean(utxo.scriptRef)) {
             let datum = reconstructDatum(await lucid!.datumOf(utxo))
-            console.log(!Boolean(utxo.scriptRef))
             if (datum.vendor === vendorPkh && !clientPubkeys.includes(datum.customer)) {
                 let subscriptionData = await getSubscriptionData(lucid, vendorPkh, datum.customer, contractUtxos)
-                console.log(datum)
                 clientPubkeys.push(datum.customer)
                 customerList.push({ customerPkh: datum.customer, subscriptionData })
             }
@@ -276,14 +286,20 @@ export const getCustomerSubscriptions = async (lucid: Lucid, customerAddress: st
     for (let utxo of contractUtxos) {
         if (!Boolean(utxo.scriptRef)) {
             let datum = reconstructDatum(await lucid!.datumOf(utxo))
-            console.log(!Boolean(utxo.scriptRef))
+            console.log("customerPkh", customerPkh)
+
+            console.log(datum)
             if (datum.customer === customerPkh && !vendorPubkeys.includes(datum.vendor)) {
-                let subscriptionData = await getSubscriptionData(lucid, datum.vendor, customerPkh, contractUtxos)
-                console.log(subscriptionData)
-                if (subscriptionData.isSubscribed) {
-                    vendorPubkeys.push(datum.vendor)
-                    vendorList.push({ vendorPkh: datum.vendor, subscriptionData })
+                try {
+                    let subscriptionData = await getSubscriptionData(lucid, datum.vendor, customerPkh, contractUtxos)
+                    if (subscriptionData.isSubscribed) {
+                        vendorPubkeys.push(datum.vendor)
+                        vendorList.push({ vendorPkh: datum.vendor, subscriptionData })
+                    }
+                } catch (err) {
+                    console.log(err)
                 }
+
             }
         }
     }
